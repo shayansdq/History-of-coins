@@ -4,6 +4,7 @@ from celery import shared_task
 
 
 @shared_task
-def add(args):
-    print(args)
+def add(**kwargs):
+    print(kwargs['coins'])
+    print(type(kwargs['coins']))
     # return coins, candle_type
