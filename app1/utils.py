@@ -2,12 +2,20 @@
 # from datetime import datetime
 # from django_redis import get_redis_connection
 # import pandas
-from binance import Client as binance_client
+import pickle
+import zlib
+
+# from binance import Client as binance_client, AsyncClient
+from django_redis import get_redis_connection
 from kucoin.client import Client as kucoin_client
 import environ
 # from django_celery_beat.models import IntervalSchedule, PeriodicTask, CrontabSchedule
 from binance import Client as binance_client
+from binance import AsyncClient as async_binance_client
 import pandas as pd
+import asyncio
+
+cache = get_redis_connection('default')
 
 
 def create_kucoin_df(candles_data: list):
@@ -27,14 +35,19 @@ def create_kucoin_df(candles_data: list):
     open_prices = separated_pats[1]
     close_prices = separated_pats[2]
     highest_prices = separated_pats[3]
-    lowest_prices = separated_pats[3]
-    closes = separated_pats[4]
-    volumes = separated_pats[5]
-    close_times = separated_pats[6]
-    quote_asset_volumes = separated_pats[7]
-    number_of_trades = separated_pats[8]
-    taker_buy_base_asset_volumes = separated_pats[9]
-    taker_buy_quote_asset_volumes = separated_pats[10]
+    lowest_prices = separated_pats[4]
+    transaction_amounts = separated_pats[5]
+    transaction_volumes = separated_pats[6]
+    data = {
+        'start_time': start_times,
+        'open_price': open_prices,
+        'close_price': close_prices,
+        'highest_price': highest_prices,
+        'lowest_price': lowest_prices,
+        'transaction_amount': transaction_amounts,
+        'transaction_volume': transaction_volumes,
+    }
+    return pd.DataFrame(data)
 
 
 def create_binance_df(candles_data: list):
@@ -68,20 +81,37 @@ def create_binance_df(candles_data: list):
     return pd.DataFrame(data)
 
 
-def binance(symbol, candle_type, candle_time):
-    last_candles = binance_client.get_klines(symbol=symbol, interval=eval(f"binance_client.KLINE_INTERVAL_"
-                                                                          f"{candle_time}{candle_type}"), limit=500)
-    return last_candles
+async def get_binance_data(client, symbol, candle_type, candle_time):
+    last_candles = await async_binance_client().get_klines(symbol=symbol, interval=eval(f"binance_client"
+                                                                                        f".KLINE_INTERVAL_"
+                                                                                        f"{candle_time}{candle_type}"),
+                                                           limit=500)
+    print('ok - binance')
+    await client.close_connection()
+    compressed_df = zlib.compress(pickle.dumps(create_binance_df(last_candles)))
+    cache.set(f"binance-{symbol}-{candle_time}-{candle_type}", compressed_df)
+    # return create_binance_df(last_candles)
 
 
-def kucoin(symbol, candle_type, candle_time):
-    last_candles = binance_client.get_klines(symbol=symbol, interval=eval(f"binance_client.KLINE_INTERVAL_"
-                                                                          f"{candle_time}{candle_type}"), limit=500)
-    return last_candles
+def get_kucoin_data(symbol, candle_type, candle_time):
+    import urllib3
+    urllib3.disable_warnings()
+    match candle_type:
+        case 'MINUTE':
+            candle_type = 'min'
+        case 'HOUR':
+            candle_type = 'hour'
+        case 'DAY':
+            candle_type = 'day'
+    client = kucoin_client("api-key", "api-secret", "api-passphrase", False,
+                           {"verify": False, "timeout": 20})
+    print('ok - kucoin')
+    last_candles = client.get_kline_data(symbol, f'{candle_time}{candle_type}', 1507479171)
+    last_500_candles = last_candles[-1:-501:-1][::-1]
+    return create_kucoin_df(last_500_candles)
 
-
-env = environ.Env()
-environ.Env.read_env()
+# env = environ.Env()
+# environ.Env.read_env()
 
 # cache = get_redis_connection('default')
 # print('ok')
