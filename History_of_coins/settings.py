@@ -9,11 +9,15 @@ https://docs.djangoproject.com/en/4.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
+# import django
+# django.setup()
 from celery.schedules import crontab
 from pathlib import Path
 import environ
+from .candles_for_celery_beats import candles
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
@@ -26,6 +30,7 @@ SECRET_KEY = 'django-insecure-sdf-gldvy04w82+l_q+e#&s5lh@kc)x&px87%kbf=@o4gz2m%4
 DEBUG = True
 
 ALLOWED_HOSTS = []
+
 
 # Initialise environment variables
 env = environ.Env()
@@ -41,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'app1',
+    # 'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -124,7 +130,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery Configuration Options
-CELERY_TIMEZONE = "Asia/Tehran"
+CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
 # CELERY_BROKER_URL = 'redis://localhost:1401'
 # CELERY_BROKER_TRANSPORT = 'redis'
@@ -133,17 +139,7 @@ CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
-CELERY_BEAT_SCHEDULE = {
-    '1_minute_candle': {
-        'task': 'app1.tasks.add',
-        'schedule': crontab(minute='*/3'),
-        'kwargs': {
-            'coins':
-                ('BTCUSDT', 'ETHUSDT', 'FTMUSDT', 'XRPUSDT', 'ADAUSDT', 'SUSHIUSDT', 'CHZUSDT', 'ATOMUSDT')
-        },
-        # 'candle_type':'1m',
-    },
-}
+CELERY_BEAT_SCHEDULE = candles
 
 # django-redis Configurations
 CACHES = {
@@ -155,3 +151,4 @@ CACHES = {
         }
     }
 }
+
