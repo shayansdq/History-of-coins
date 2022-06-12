@@ -130,6 +130,6 @@ dmypy.json
 
 # added
 /**/migrations/*
-!**/migrations/__init__.py
+!/**/migrations/__init__.py
 *.xml
 *.iml
